@@ -62,8 +62,8 @@ export const Canvas = () => {
         const id = addComponent(typeToAdd, Math.max(0, x - 50), Math.max(0, y - 20));
         
         // Set specific props for specialized tools
-        if (activeTool === 'arrow') updateComponent(id, { props: { name: 'arrow-right', size: 32 } });
-        else if (activeTool === 'pen') updateComponent(id, { props: { name: 'pen-tool', size: 32 } });
+        if (activeTool === 'arrow') updateComponent(id, { props: { name: 'ArrowRight', size: 32 } });
+        else if (activeTool === 'pen') updateComponent(id, { props: { name: 'PenTool', size: 32 } });
         else if (activeTool === 'comment') updateComponent(id, { props: { text: 'New Comment' } });
         else if (activeTool === 'circle') updateComponent(id, { styles: { borderRadius: 1000 } });
         

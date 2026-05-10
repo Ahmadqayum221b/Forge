@@ -40,6 +40,8 @@ function encodeSnapshot(
           id: c.id, name: c.name, type: c.type, screenId: c.screenId,
           x: c.x, y: c.y, width: c.width, height: c.height, zIndex: c.zIndex,
           visible: c.visible, props: c.props, styles: c.styles,
+          variableBindings: c.variableBindings || {},
+          logic: c.logic || [],
         }])
       ),
     };

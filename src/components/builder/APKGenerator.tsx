@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { Button } from "@/components/ui/button";
 
 // ── Build Steps ────────────────────────────────────────────────────
 const BUILD_STEPS = [

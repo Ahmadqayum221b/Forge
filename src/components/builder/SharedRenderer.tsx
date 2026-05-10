@@ -52,9 +52,12 @@ interface SharedRendererProps {
 }
 
 export const SharedRenderer = ({ component: comp, zoom, isInteractive, localVariables = {}, onVariableChange }: SharedRendererProps) => {
-  const s = comp.styles;
-  const p = comp.props;
-  const fs = (size: number) => size * zoom;
+  if (!comp) return null;
+  const s = comp.styles || {};
+  const p = comp.props || {};
+  const v = comp.variableBindings || {};
+  const l = comp.logic || [];
+  const fs = (size: number) => (size || 0) * zoom;
 
   // Resolve variable bindings
   const boundValue = (propKey: string, fallback: any) => {
