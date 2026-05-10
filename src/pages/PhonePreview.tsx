@@ -21,34 +21,49 @@ export const PhonePreview = () => {
 
   useEffect(() => {
     // ── Path A: base64-encoded project (Vercel / no backend) ─────────
-    const compressedParam = searchParams.get('cproject');
     const projectParam = searchParams.get('project');
+    if (projectParam) {
+      try {
+        const jsonStr = decodeURIComponent(escape(atob(projectParam)));
+        const raw = JSON.parse(jsonStr);
+        
+        // ── Map short keys back to long names ────────────────────────
+        const decoded: PreviewProject = {
+          screens: (raw.sc || []).map((s: any) => ({
+            id: s.i,
+            name: s.n,
+            backgroundColor: s.b || 'transparent',
+          })),
+          settings: raw.se || {},
+          components: Object.fromEntries(
+            Object.entries(raw.co || {}).map(([id, c]: [string, any]) => [
+              id,
+              {
+                id: id, // Use the key as the ID
+                type: c.t,
+                screenId: c.s,
+                x: c.x || 0,
+                y: c.y || 0,
+                width: c.w || 0,
+                height: c.h || 0,
+                zIndex: c.z || 0,
+                visible: c.vi === false ? false : true,
+                props: c.p || {},
+                styles: c.st || {},
+                variableBindings: c.vb || {},
+                logic: c.lo || [],
+              },
+            ])
+          ),
+        };
 
-    if (compressedParam || projectParam) {
-      const loadFromParam = async () => {
-        try {
-          let jsonStr = '';
-          if (compressedParam) {
-            // GZIP decompression
-            const bytes = Uint8Array.from(atob(compressedParam), (c) => c.charCodeAt(0));
-            const stream = new Blob([bytes]).stream();
-            const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
-            jsonStr = await new Response(decompressedStream).text();
-          } else if (projectParam) {
-            // Standard Unicode-safe base64
-            jsonStr = decodeURIComponent(escape(atob(projectParam)));
-          }
-
-          const decoded = JSON.parse(jsonStr) as PreviewProject;
-          if (!decoded || !decoded.screens) throw new Error('Invalid project structure');
-          setProject(decoded);
-          setCurrentScreenId(decoded.screens[0]?.id || '');
-        } catch (err) {
-          console.error('Preview decode error:', err);
-          setError('Could not decode the preview data. The QR code may be corrupted or your browser is too old.');
-        }
-      };
-      loadFromParam();
+        if (!decoded.screens || decoded.screens.length === 0) throw new Error('Invalid project');
+        setProject(decoded);
+        setCurrentScreenId(decoded.screens[0].id);
+      } catch (err) {
+        console.error('Preview decode error:', err);
+        setError('Could not decode the preview data. The project might be too large or contain invalid characters.');
+      }
       return;
     }
 

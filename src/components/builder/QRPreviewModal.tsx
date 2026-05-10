@@ -25,39 +25,34 @@ async function isBackendReachable(): Promise<boolean> {
 }
 
 /** Encode snapshot as a compact base64 URL usable in a QR code. */
-async function encodeSnapshot(
+function encodeSnapshot(
   screens: any[],
   components: Record<string, any>,
   settings: Record<string, any>,
-): Promise<{ url: string; bytes: number } | null> {
+): { url: string; bytes: number } | null {
   try {
-    // Strip heavy fields not needed for the preview renderer
+    // Aggressively shrink to fit in Vercel's URL limits
     const slim = {
-      screens,
-      settings,
-      components: Object.fromEntries(
+      sc: screens.map(s => ({ i: s.id, n: s.name })), // Only ID and Name
+      se: settings,
+      co: Object.fromEntries(
         Object.entries(components).map(([k, c]) => [k, {
-          id: c.id, name: c.name, type: c.type, screenId: c.screenId,
-          x: c.x, y: c.y, width: c.width, height: c.height, zIndex: c.zIndex,
-          visible: c.visible, props: c.props, styles: c.styles,
-          variableBindings: c.variableBindings || {},
-          logic: c.logic || [],
+          t: c.type, 
+          s: c.screenId,
+          x: Math.round(c.x), 
+          y: Math.round(c.y), 
+          w: Math.round(c.width), 
+          h: Math.round(c.height),
+          z: c.zIndex !== 0 ? c.zIndex : undefined,
+          vi: c.visible === false ? false : undefined,
+          p: c.props, 
+          st: c.styles,
+          vb: c.variableBindings && Object.keys(c.variableBindings).length > 0 ? c.variableBindings : undefined,
+          lo: c.logic && c.logic.length > 0 ? c.logic : undefined,
         }])
       ),
     };
     const jsonStr = JSON.stringify(slim);
-    
-    // Attempt compression if supported (shrinks payload by 60-80%)
-    if (typeof CompressionStream !== 'undefined') {
-      const stream = new Blob([jsonStr]).stream();
-      const compressedStream = stream.pipeThrough(new CompressionStream('gzip'));
-      const compressedBuffer = await new Response(compressedStream).arrayBuffer();
-      const encoded = btoa(String.fromCharCode(...new Uint8Array(compressedBuffer)));
-      const url = `${window.location.origin}/preview?cproject=${encoded}`;
-      return { url, bytes: encoded.length };
-    }
-
-    // Fallback: standard base64 (Unicode-safe)
     const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
     const url     = `${window.location.origin}/preview?project=${encoded}`;
     return { url, bytes: encoded.length };
