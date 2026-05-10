@@ -45,6 +45,9 @@ interface ProjectState {
   isTemplateModalOpen: boolean;
   isFigmaModalOpen: boolean;
   isQrModalOpen: boolean;
+  isLoginOpen: boolean;
+  isLoading: boolean;
+  activeTool: string;
 
   // ── History ──
   history: HistoryEntry[];
@@ -106,6 +109,8 @@ interface ProjectState {
   setTemplateModalOpen: (open: boolean) => void;
   setFigmaModalOpen: (open: boolean) => void;
   setQrModalOpen: (open: boolean) => void;
+  setLoginOpen: (open: boolean) => void;
+  setIsLoading: (loading: boolean) => void;
 
   // Batch component add (used by AI generator)
   addComponents: (components: Array<Partial<AppComponent> & { type: ComponentType }>) => void;
@@ -170,8 +175,11 @@ const INITIAL_STATE = {
   isTemplateModalOpen: false,
   isFigmaModalOpen: false,
   isQrModalOpen: false,
+  isLoginOpen: false,
+  isLoading: false,
   history: [] as HistoryEntry[],
   historyIndex: -1,
+  activeTool: 'select',
 };
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -426,6 +434,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setTemplateModalOpen: (open) => set({ isTemplateModalOpen: open }),
   setFigmaModalOpen: (open) => set({ isFigmaModalOpen: open }),
   setQrModalOpen: (open) => set({ isQrModalOpen: open }),
+  setLoginOpen: (open) => set({ isLoginOpen: open }),
+  setIsLoading: (loading) => set({ isLoading: loading }),
+  setActiveTool: (tool) => set({ activeTool: tool }),
 
   addComponents: (comps) => {
     const state = get();

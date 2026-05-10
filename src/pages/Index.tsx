@@ -24,8 +24,27 @@ import {
   Figma,
   Download,
 } from "lucide-react";
+import { useProjectStore } from "@/stores/projectStore";
+import { LoginPanel } from "@/components/builder/LoginPanel";
+import { LoadingScreen } from "@/components/builder/LoadingScreen";
+import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 
 const Index = () => {
+  const isLoginOpen = useProjectStore((s) => s.isLoginOpen);
+  const setLoginOpen = useProjectStore((s) => s.setLoginOpen);
+  const isLoading = useProjectStore((s) => s.isLoading);
+  const setIsLoading = useProjectStore((s) => s.setIsLoading);
+  const navigate = useNavigate();
+
+  const handleStartBuilding = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+      navigate("/builder");
+    }, 4500); // Show loading screen for 4.5s
+  };
   return (
     <div className="min-h-screen overflow-hidden">
       {/* NAV */}
@@ -45,8 +64,12 @@ const Index = () => {
             <a href="#pricing" className="transition hover:text-foreground">Pricing</a>
           </nav>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="hidden sm:inline-flex">Sign in</Button>
-            <Button size="sm" className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90">
+            <Button variant="ghost" size="sm" className="hidden sm:inline-flex" onClick={() => setLoginOpen(true)}>Sign in</Button>
+            <Button 
+              size="sm" 
+              className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
+              onClick={handleStartBuilding}
+            >
               Start free
             </Button>
           </div>
@@ -70,11 +93,13 @@ const Index = () => {
               connect logic without code, and export a signed <code className="rounded bg-muted px-1.5 py-0.5 text-xs">.apk</code> from your browser.
             </p>
             <div className="flex flex-wrap items-center gap-3">
-              <Link to="/builder">
-                <Button size="lg" className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90">
-                  Open the builder <ArrowRight className="ml-1" />
-                </Button>
-              </Link>
+              <Button 
+                size="lg" 
+                className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
+                onClick={handleStartBuilding}
+              >
+                Open the builder <ArrowRight className="ml-1" />
+              </Button>
               <Button size="lg" variant="outline" className="glass border-white/10 hover:bg-white/5">
                 <Play className="mr-1" /> Watch 90s demo
               </Button>
@@ -341,11 +366,13 @@ const Index = () => {
             Open the builder, drag a button, and hit Generate. We'll handle the rest.
           </p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <Link to="/builder">
-              <Button size="lg" className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90">
-                Start building free <ArrowRight className="ml-1" />
-              </Button>
-            </Link>
+            <Button 
+              size="lg" 
+              className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
+              onClick={handleStartBuilding}
+            >
+              Start building free <ArrowRight className="ml-1" />
+            </Button>
             <Button size="lg" variant="outline" className="glass border-white/10">
               <Github className="mr-1" /> Star on GitHub
             </Button>
@@ -367,6 +394,9 @@ const Index = () => {
           </div>
         </div>
       </footer>
+
+      {isLoginOpen && <LoginPanel />}
+      {isLoading && <LoadingScreen />}
     </div>
   );
 };

@@ -17,6 +17,8 @@ export const Canvas = () => {
   const addComponent = useProjectStore((s) => s.addComponent);
   const moveComponent = useProjectStore((s) => s.moveComponent);
   const screens = useProjectStore((s) => s.screens);
+  const activeTool = useProjectStore((s) => s.activeTool);
+  const setActiveTool = useProjectStore((s) => s.setActiveTool);
 
   const frame = DEVICE_FRAMES[deviceFrame];
   const activeScreen = screens.find((s) => s.id === activeScreenId);
@@ -36,8 +38,24 @@ export const Canvas = () => {
   const [snapLines, setSnapLines] = useState<{ x: number | null, y: number | null }>({ x: null, y: null });
 
   const handleCanvasClick = (e: React.MouseEvent) => {
-    if (e.target === deviceRef.current || (e.target as HTMLElement).classList.contains('device-screen')) {
-      selectComponent(null);
+    const isDevice = e.target === deviceRef.current || (e.target as HTMLElement).classList.contains('device-screen');
+    
+    if (isDevice) {
+      if (activeTool !== 'select') {
+        const rect = deviceRef.current!.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / canvasZoom;
+        const y = (e.clientY - rect.top) / canvasZoom;
+        
+        let typeToAdd: ComponentType = 'container';
+        if (activeTool === 'rect') typeToAdd = 'container';
+        else if (activeTool === 'circle') typeToAdd = 'avatar'; // Using avatar as circle for now
+        else if (activeTool === 'text' || activeTool === 'heading') typeToAdd = 'text';
+        
+        addComponent(typeToAdd, x - 50, y - 20);
+        setActiveTool('select');
+      } else {
+        selectComponent(null);
+      }
     }
   };
 

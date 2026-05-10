@@ -1,6 +1,7 @@
 import { useProjectStore } from '@/stores/projectStore';
 import { X, Sparkles, Loader2, AlertCircle, Wand2, ChevronRight } from 'lucide-react';
 import { useState, useRef } from 'react';
+import { toast } from 'sonner';
 import type { ComponentType } from '@/types/builder';
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -9,32 +10,37 @@ const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const SYSTEM_PROMPT = `You are an expert Android UI designer and JSON generator for a no-code app builder.
 When given a description of a UI screen or component, you return ONLY a valid JSON array of component definitions — nothing else, no markdown, no explanation.
 
+DESIGN PRINCIPLES:
+- Use modern, premium aesthetics (Glassmorphism, vibrant gradients, subtle borders).
+- Layout components logically for a mobile device (390x800).
+- Standard spacing: 12-20px. 
+- Use the "container" type for grouping related elements.
+
+COMPONENT SCHEMA:
 Each component object must have these fields:
-- type: one of "button" | "text" | "image" | "input" | "textarea" | "switch" | "slider" | "checkbox" | "radio" | "container" | "card" | "divider" | "spacer" | "list" | "icon"
-- x: number (horizontal position in pixels, 20-350)
-- y: number (vertical position in pixels, starting from 10, incrementing appropriately)
-- width: number (e.g. 280 for full-width, 130 for half)
-- height: number (e.g. 44 for button, 28 for text, 180 for card)
+- type: "button" | "text" | "image" | "input" | "textarea" | "switch" | "slider" | "checkbox" | "radio" | "container" | "card" | "divider" | "spacer" | "list" | "icon" | "header" | "badge" | "progress" | "tabs" | "avatar"
+- x: number (20-350)
+- y: number (starts from 20)
+- width: number
+- height: number
 - props: object with component-specific props:
   - button: { label: string }
   - text: { content: string, align: "left"|"center"|"right" }
-  - input: { placeholder: string, type: "text"|"email"|"password"|"number" }
+  - input: { placeholder: string, type: "text"|"email"|"password" }
   - card: { title: string, subtitle: string }
   - list: { items: string[] }
-  - switch: { checked: boolean, label: string }
-  - checkbox: { checked: boolean, label: string }
   - icon: { name: string, size: number }
-- styles: object with CSS-like properties:
-  - For button: { backgroundColor: "#hexcolor", color: "#fff", fontSize: 14, fontWeight: "600", borderRadius: 12, borderWidth: 0, borderColor: "#000" }
-  - For text: { color: "#ffffff", fontSize: 16, fontWeight: "400" }
-  - For input: { backgroundColor: "rgba(255,255,255,0.08)", color: "#fff", fontSize: 14, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", paddingX: 12 }
-  - For card: { backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", padding: 16 }
+  - header: { title: string }
+  - badge: { text: string }
+  - progress: { value: number }
+- styles: object with CSS-like properties.
 
-The canvas is 390px wide and 800px tall (dark background).
-Space components 10-20px apart vertically.
-Start y positions from 10 or 20 for title text.
-Use vibrant colors for buttons (e.g. #6C3AED, #EC4899, #10B981, #F59E0B, #06B6D4).
-Return ONLY a valid JSON array. No extra text.`;
+STYLING GUIDELINES:
+- Primary Buttons: { backgroundColor: "#6C3AED", color: "#FFFFFF", borderRadius: 12, fontWeight: "600" }
+- Glass Cards: { backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" }
+- Typography: Default color #FFFFFF. Font sizes 12-32.
+
+Return ONLY a valid JSON array.`;
 
 const DEMO_PROMPTS = [
   'A login screen with email input, password field, and sign in button',
@@ -115,8 +121,15 @@ export const AIGeneratorPanel = ({ onClose }: AIGeneratorPanelProps) => {
       if (valid.length === 0) throw new Error('No valid component types found in AI response.');
 
       addComponents(valid);
-      setSuccess(`✨ Added ${valid.length} component${valid.length > 1 ? 's' : ''} to canvas!`);
+      setSuccess(`✨ Success! Forge AI generated ${valid.length} components.`);
       setPrompt('');
+      
+      // Impactful success toast
+      toast.success('UI Generated Successfully', {
+        description: `Added ${valid.length} components based on your prompt.`,
+        duration: 4000,
+      });
+
       setTimeout(() => { setSuccess(null); onClose(); }, 1500);
 
     } catch (e: any) {

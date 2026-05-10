@@ -3,7 +3,7 @@ import { X, QrCode, Copy, Check, Smartphone, Wifi, RefreshCw, AlertCircle, Loade
 import { useState, useEffect, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
-const BACKEND = 'http://localhost:3001';
+const BACKEND = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
 
 const STEPS = [
   { icon: Wifi, text: 'Connect phone & PC to same WiFi' },
@@ -51,7 +51,13 @@ export const QRPreviewModal = () => {
       const url = `http://${ip}:${vitePort}/preview?token=${newToken}&api=http://${ip}:3001`;
       setPreviewUrl(url);
     } catch {
-      setBackendError(true);
+      if (window.location.hostname !== 'localhost') {
+        // Fallback for Vercel/Production: Generate a static preview URL using current origin
+        const url = `${window.location.origin}/preview?project=${btoa(JSON.stringify({ screens, components, settings }))}`;
+        setPreviewUrl(url);
+      } else {
+        setBackendError(true);
+      }
     } finally {
       setLoading(false);
     }

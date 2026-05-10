@@ -53,7 +53,13 @@ export type ActionType =
   | 'set_state'
   | 'math_operation'
   | 'format_date'
-  | 'validate_form';
+  | 'validate_form'
+  | 'logic_gate'
+  | 'logic_switch'
+  | 'math_multi'
+  | 'data_transform'
+  | 'user_auth'
+  | 'file_upload';
 
 export type VariableType = 'string' | 'number' | 'boolean' | 'image' | 'list';
 
@@ -179,7 +185,7 @@ export type TemplateCategory =
   | 'education'
   | 'restaurant';
 
-export type LeftPanelTab = 'components' | 'layers' | 'screens' | 'variables' | 'database';
+export type LeftPanelTab = 'components' | 'layers' | 'screens' | 'variables' | 'database' | 'history' | 'packages';
 export type RightPanelTab = 'inspector' | 'logic' | 'native';
 
 // ── Component defaults ─────────────────────────────────────────────
@@ -419,6 +425,8 @@ export interface ActionDefinition {
   category: string;
   icon: string;
   params: { key: string; label: string; type: 'string' | 'number' | 'screen' | 'variable' | 'boolean' }[];
+  inputs?: { id: string; label: string; type: string }[];
+  outputs?: { id: string; label: string; type: string }[];
 }
 
 export const ACTION_DEFINITIONS: ActionDefinition[] = [
@@ -449,4 +457,49 @@ export const ACTION_DEFINITIONS: ActionDefinition[] = [
   { type: 'math_operation', label: 'Math Operation', category: 'Logic', icon: 'Calculator', params: [{ key: 'expression', label: 'Equation (e.g. x + y)', type: 'string' }] },
   { type: 'format_date', label: 'Format Date', category: 'Data', icon: 'Calendar', params: [{ key: 'date', label: 'Date Value', type: 'string' }, { key: 'format', label: 'Format String', type: 'string' }] },
   { type: 'validate_form', label: 'Validate Form', category: 'Data', icon: 'CheckSquare', params: [{ key: 'formId', label: 'Form Container ID', type: 'string' }] },
+  { 
+    type: 'logic_gate', 
+    label: 'Logical Gate (AND/OR)', 
+    category: 'Logic', 
+    icon: 'GitBranch', 
+    params: [{ key: 'op', label: 'Operator', type: 'string' }],
+    inputs: [
+      { id: 'in1', label: 'Input A', type: 'boolean' },
+      { id: 'in2', label: 'Input B', type: 'boolean' }
+    ],
+    outputs: [
+      { id: 'out', label: 'Result', type: 'boolean' }
+    ]
+  },
+  {
+    type: 'math_multi',
+    label: 'Advanced Math',
+    category: 'Logic',
+    icon: 'Calculator',
+    params: [],
+    inputs: [
+      { id: 'a', label: 'A', type: 'number' },
+      { id: 'b', label: 'B', type: 'number' },
+      { id: 'c', label: 'C', type: 'number' }
+    ],
+    outputs: [
+      { id: 'sum', label: 'Sum', type: 'number' },
+      { id: 'avg', label: 'Average', type: 'number' }
+    ]
+  },
+  {
+    type: 'user_auth',
+    label: 'User Authentication',
+    category: 'Social',
+    icon: 'UserCheck',
+    params: [],
+    inputs: [
+      { id: 'email', label: 'Email', type: 'string' },
+      { id: 'pass', label: 'Password', type: 'string' }
+    ],
+    outputs: [
+      { id: 'success', label: 'Success', type: 'event' },
+      { id: 'error', label: 'Error', type: 'event' }
+    ]
+  }
 ];

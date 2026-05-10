@@ -186,23 +186,46 @@ export const APKGenerator = () => {
     };
 
     try {
-      const response = await fetch('http://localhost:3001/api/build', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      if (window.location.hostname !== 'localhost') {
+        // Simulation mode for production/Vercel
+        setVisibleLogs(prev => [...prev, '! Note: Running in Simulation Mode (No local backend detected)']);
+        await new Promise(r => setTimeout(r, 2000));
+        
+        // Simulate Gradle progress
+        const gradleLogs = BUILD_STEPS[2].logs.slice(1);
+        for (const line of gradleLogs) {
+          await new Promise(r => setTimeout(r, 400 + Math.random() * 300));
+          setVisibleLogs(prev => [...prev, line]);
+          setTimeout(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, 50);
+        }
+      } else {
+        const response = await fetch('http://localhost:3001/api/build', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
 
-      if (!response.ok) throw new Error(await response.text());
+        if (!response.ok) throw new Error(await response.text());
 
-      // Finish log stream for step 2 (skip first line already added)
-      const gradleLogs = BUILD_STEPS[2].logs.slice(1);
-      for (const line of gradleLogs) {
-        await new Promise(r => setTimeout(r, 300 + Math.random() * 200));
-        setVisibleLogs(prev => [...prev, line]);
-        setTimeout(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, 50);
+        // Finish log stream for step 2 (skip first line already added)
+        const gradleLogs = BUILD_STEPS[2].logs.slice(1);
+        for (const line of gradleLogs) {
+          await new Promise(r => setTimeout(r, 300 + Math.random() * 200));
+          setVisibleLogs(prev => [...prev, line]);
+          setTimeout(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, 50);
+        }
+
+        // Trigger real download only on localhost
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${appName.replace(/\s+/g, '_')}_debug.apk`;
+        a.click();
+        URL.revokeObjectURL(url);
       }
 
-      // Steps 3 & 4
+      // Steps 3 & 4 (Sign & Package) - common for both real and simulation
       for (let i = 3; i < BUILD_STEPS.length; i++) {
         setBuildStep(i);
         await streamLogs(i);
@@ -210,16 +233,6 @@ export const APKGenerator = () => {
       }
 
       setPhase('done');
-
-      // Trigger download
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${appName.replace(/\s+/g, '_')}_debug.apk`;
-      a.click();
-      URL.revokeObjectURL(url);
-
     } catch (err: any) {
       setErrorMsg(err.message || 'Build failed');
       setPhase('error');
@@ -256,7 +269,11 @@ export const APKGenerator = () => {
                 </div>
                 <h3 className="text-base font-bold text-white">Generate Native APK</h3>
               </div>
-              <p className="ml-9 text-xs text-white/35">Compiles a real Android app via your local Gradle backend</p>
+              <p className="ml-9 text-xs text-white/35">
+                {window.location.hostname === 'localhost' 
+                  ? 'Compiles a real Android app via your local Gradle backend'
+                  : 'Simulation: Real APK compilation requires the Forge local backend'}
+              </p>
             </div>
 
             <div className="space-y-3">

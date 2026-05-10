@@ -14,8 +14,13 @@ import { APKGenerator } from '@/components/builder/APKGenerator';
 import { TemplateMarketplace } from '@/components/builder/TemplateMarketplace';
 import { FigmaImport } from '@/components/builder/FigmaImport';
 import { QRPreviewModal } from '@/components/builder/QRPreviewModal';
+import { HistoryPanel } from '@/components/builder/HistoryPanel';
+import { PackagesPanel } from '@/components/builder/PackagesPanel';
+import { FloatingToolbar } from '@/components/builder/FloatingToolbar';
+import { LoginPanel } from '@/components/builder/LoginPanel';
+import { LoadingScreen } from '@/components/builder/LoadingScreen';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { Layers, MonitorSmartphone, Variable, Database, LayoutTemplate } from 'lucide-react';
+import { Layers, MonitorSmartphone, Variable, Database, LayoutTemplate, History, Package } from 'lucide-react';
 
 const LEFT_TABS = [
   { id: 'components' as const, label: 'Components', icon: LayoutTemplate },
@@ -23,6 +28,8 @@ const LEFT_TABS = [
   { id: 'screens' as const, label: 'Screens', icon: MonitorSmartphone },
   { id: 'variables' as const, label: 'Variables', icon: Variable },
   { id: 'database' as const, label: 'Database', icon: Database },
+  { id: 'history' as const, label: 'History', icon: History },
+  { id: 'packages' as const, label: 'Packages', icon: Package },
 ];
 
 const Builder = () => {
@@ -37,6 +44,8 @@ const Builder = () => {
   const isTemplateModalOpen = useProjectStore((s) => s.isTemplateModalOpen);
   const isFigmaModalOpen = useProjectStore((s) => s.isFigmaModalOpen);
   const isQrModalOpen = useProjectStore((s) => s.isQrModalOpen);
+  const isLoginOpen = useProjectStore((s) => s.isLoginOpen);
+  const isLoading = useProjectStore((s) => s.isLoading);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#0A0A12]">
@@ -72,11 +81,14 @@ const Builder = () => {
             {leftPanelTab === 'screens' && <ScreenManager />}
             {leftPanelTab === 'variables' && <VariableManager />}
             {leftPanelTab === 'database' && <DatabasePanel />}
+            {leftPanelTab === 'history' && <HistoryPanel />}
+            {leftPanelTab === 'packages' && <PackagesPanel />}
           </div>
         </div>
 
         {/* ── Canvas (Center) ── */}
         <div className="relative flex-1 overflow-hidden bg-[#08080F]">
+          <FloatingToolbar />
           <Canvas />
         </div>
 
@@ -117,6 +129,8 @@ const Builder = () => {
       {isTemplateModalOpen && <TemplateMarketplace />}
       {isFigmaModalOpen && <FigmaImport />}
       {isQrModalOpen && <QRPreviewModal />}
+      {isLoginOpen && <LoginPanel />}
+      {isLoading && <LoadingScreen />}
     </div>
   );
 };

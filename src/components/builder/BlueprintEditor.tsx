@@ -8,7 +8,7 @@ type NodeCat = 'event'|'navigation'|'data'|'device'|'ui'|'social'|'logic';
 interface BPNode {
   id: string; type: string; category: NodeCat; label: string; x: number; y: number;
 }
-interface BPConn { id: string; from: string; to: string; }
+interface BPConn { id: string; from: string; fromPort?: string; to: string; toPort?: string; }
 
 const CAT_COLOR: Record<NodeCat,string> = {
   event:'#F59E0B', navigation:'#8B5CF6', data:'#06B6D4',
@@ -44,7 +44,9 @@ function bez(x1:number,y1:number,x2:number,y2:number){
 
 function nodeH(n:BPNode){
   const def=ACTION_DEFINITIONS.find(a=>a.type===n.type);
-  return NH+(def?.params.length||0)*34+8;
+  const paramH = (def?.params.length||0)*34;
+  const portH = Math.max(def?.inputs?.length||0, def?.outputs?.length||0)*28;
+  return NH + paramH + portH + 8;
 }
 
 // Reconstruct full blueprint state from saved ComponentLogic[]
@@ -140,10 +142,17 @@ export const BlueprintEditor = ({onClose}:{onClose:()=>void})=>{
     e.stopPropagation(); setFromPort(nid);
   };
 
-  const clickIn=(e:React.MouseEvent,nid:string)=>{
+  const clickIn=(e:React.MouseEvent,nid:string,portId?:string)=>{
     e.stopPropagation();
-    if(fromPort&&fromPort!==nid){
-      setConns(cs=>[...cs.filter(c=>c.to!==nid),{id:`c${Date.now()}`,from:fromPort,to:nid}]);
+    if(fromPort&&fromPort.split(':')[0]!==nid){
+      const [fromNode,fromP] = fromPort.split(':');
+      setConns(cs=>[...cs.filter(c=>c.to!==nid||c.toPort!==portId),{
+        id:`c${Date.now()}`,
+        from:fromNode,
+        fromPort:fromP,
+        to:nid,
+        toPort:portId
+      }]);
       setFromPort(null);
     }
   };
@@ -181,8 +190,8 @@ export const BlueprintEditor = ({onClose}:{onClose:()=>void})=>{
     onClose();
   };
 
-  const outPt=(n:BPNode)=>({x:n.x+NW,y:n.y+NH/2});
-  const inPt =(n:BPNode)=>({x:n.x,    y:n.y+NH/2});
+  const outPt=(n:BPNode, portIdx=0)=>({x:n.x+NW, y:n.y+NH+portIdx*28+14});
+  const inPt =(n:BPNode, portIdx=0)=>({x:n.x,    y:n.y+NH+portIdx*28+14});
 
   const cats:NodeCat[]=['event','navigation','data','device','ui','social','logic'];
   const filtered=CATALOGUE.filter(n=>n.label.toLowerCase().includes(search.toLowerCase()));
@@ -240,7 +249,14 @@ export const BlueprintEditor = ({onClose}:{onClose:()=>void})=>{
               {conns.map(c=>{
                 const f=nodes.find(n=>n.id===c.from), t=nodes.find(n=>n.id===c.to);
                 if(!f||!t) return null;
-                const fp=outPt(f), tp=inPt(t), col=CAT_COLOR[f.category], hov=hovConn===c.id;
+                
+                const fDef = ACTION_DEFINITIONS.find(a=>a.type===f.type);
+                const tDef = ACTION_DEFINITIONS.find(a=>a.type===t.type);
+                
+                const fIdx = fDef?.outputs?.findIndex(o=>o.id===c.fromPort)??0;
+                const tIdx = tDef?.inputs?.findIndex(i=>i.id===c.toPort)??0;
+
+                const fp=outPt(f, fIdx=== -1 ? 0 : fIdx), tp=inPt(t, tIdx=== -1 ? 0 : tIdx), col=CAT_COLOR[f.category], hov=hovConn===c.id;
                 return <g key={c.id} style={{pointerEvents:'stroke' as any,cursor:'pointer'}}
                   onMouseEnter={()=>setHovConn(c.id)} onMouseLeave={()=>setHovConn(null)}
                   onClick={()=>delConn(c.id)}>
@@ -256,8 +272,11 @@ export const BlueprintEditor = ({onClose}:{onClose:()=>void})=>{
                 </g>;
               })}
               {fromPort&&(()=>{
-                const f=nodes.find(n=>n.id===fromPort); if(!f) return null;
-                const fp=outPt(f), col=CAT_COLOR[f.category];
+                const [fnid, fpid] = fromPort.split(':');
+                const f=nodes.find(n=>n.id===fnid); if(!f) return null;
+                const fDef = ACTION_DEFINITIONS.find(a=>a.type===f.type);
+                const fIdx = fDef?.outputs?.findIndex(o=>o.id===fpid)??0;
+                const fp=outPt(f, fIdx=== -1 ? 0 : fIdx), col=CAT_COLOR[f.category];
                 return <path className="flow-line" d={bez(fp.x,fp.y,mouse.x,mouse.y)} fill="none" stroke={col} strokeWidth={2.5}
                   strokeOpacity={0.75} strokeDasharray="8 5" style={{filter:`drop-shadow(0 0 6px ${col}88)`}}/>;
               })()}
@@ -312,10 +331,36 @@ export const BlueprintEditor = ({onClose}:{onClose:()=>void})=>{
                       </div>
                     )}
                   </div>
-                  {node.category!=='event'&&(
-                    <Port x={-9} y={NH/2-9} col={col} onClick={e=>clickIn(e,node.id)}/>
-                  )}
-                  <Port x={NW-7} y={NH/2-9} col={col} onClick={e=>clickOut(e,node.id)}/>
+                  {/* Ports Rendering */}
+                  <div style={{position:'absolute', inset:0, pointerEvents:'none'}}>
+                    {/* Inputs */}
+                    {def?.inputs?.map((inp, idx) => (
+                      <div key={inp.id} style={{position:'absolute', left:-10, top:NH+idx*28+4, display:'flex', alignItems:'center', gap:6, pointerEvents:'auto'}}>
+                        <Port col={col} onClick={e=>clickIn(e,node.id,inp.id)}/>
+                        <span style={{fontSize:8, color:'rgba(255,255,255,0.4)', fontWeight:600, textTransform:'uppercase'}}>{inp.label}</span>
+                      </div>
+                    ))}
+                    {/* Default input for simple nodes */}
+                    {node.category!=='event' && (!def?.inputs || def.inputs.length===0) && (
+                      <div style={{position:'absolute', left:-10, top:NH/2-10, pointerEvents:'auto'}}>
+                        <Port col={col} onClick={e=>clickIn(e,node.id)}/>
+                      </div>
+                    )}
+
+                    {/* Outputs */}
+                    {def?.outputs?.map((out, idx) => (
+                      <div key={out.id} style={{position:'absolute', right:-10, top:NH+idx*28+4, display:'flex', alignItems:'center', gap:6, pointerEvents:'auto', flexDirection:'row-reverse'}}>
+                        <Port col={col} onClick={e=>setFromPort(`${node.id}:${out.id}`)}/>
+                        <span style={{fontSize:8, color:'rgba(255,255,255,0.4)', fontWeight:600, textTransform:'uppercase'}}>{out.label}</span>
+                      </div>
+                    ))}
+                    {/* Default output for simple nodes */}
+                    {(!def?.outputs || def.outputs.length===0) && (
+                      <div style={{position:'absolute', right:-10, top:NH/2-10, pointerEvents:'auto'}}>
+                        <Port col={col} onClick={e=>setFromPort(`${node.id}:out`)}/>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}
