@@ -25,11 +25,11 @@ async function isBackendReachable(): Promise<boolean> {
 }
 
 /** Encode snapshot as a compact base64 URL usable in a QR code. */
-function encodeSnapshot(
+async function encodeSnapshot(
   screens: any[],
   components: Record<string, any>,
   settings: Record<string, any>,
-): { url: string; bytes: number } | null {
+): Promise<{ url: string; bytes: number } | null> {
   try {
     // Strip heavy fields not needed for the preview renderer
     const slim = {
@@ -45,11 +45,24 @@ function encodeSnapshot(
         }])
       ),
     };
-    const json    = JSON.stringify(slim);
-    const encoded = btoa(unescape(encodeURIComponent(json)));
+    const jsonStr = JSON.stringify(slim);
+    
+    // Attempt compression if supported (shrinks payload by 60-80%)
+    if (typeof CompressionStream !== 'undefined') {
+      const stream = new Blob([jsonStr]).stream();
+      const compressedStream = stream.pipeThrough(new CompressionStream('gzip'));
+      const compressedBuffer = await new Response(compressedStream).arrayBuffer();
+      const encoded = btoa(String.fromCharCode(...new Uint8Array(compressedBuffer)));
+      const url = `${window.location.origin}/preview?cproject=${encoded}`;
+      return { url, bytes: encoded.length };
+    }
+
+    // Fallback: standard base64 (Unicode-safe)
+    const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
     const url     = `${window.location.origin}/preview?project=${encoded}`;
     return { url, bytes: encoded.length };
-  } catch {
+  } catch (err) {
+    console.error('Encoding error:', err);
     return null;
   }
 }

@@ -20,27 +20,42 @@ export const PhonePreview = () => {
   const [history, setHistory] = useState<string[]>([]);
 
   useEffect(() => {
-    const token = searchParams.get('token');
-    const projectParam = searchParams.get('project');
-    // api param tells us where the backend is (e.g. http://192.168.1.5:3001)
-    const apiBase = searchParams.get('api') || 'http://localhost:3001';
-
     // ── Path A: base64-encoded project (Vercel / no backend) ─────────
-    if (projectParam) {
-      try {
-        // Unicode-safe base64 decoding
-        const decoded = JSON.parse(decodeURIComponent(escape(atob(projectParam)))) as PreviewProject;
-        if (!decoded || !decoded.screens) throw new Error('Invalid project structure');
-        setProject(decoded);
-        setCurrentScreenId(decoded.screens[0]?.id || '');
-      } catch (err) {
-        console.error('Preview decode error:', err);
-        setError('Could not decode the preview data. The project might be too large or contain invalid characters.');
-      }
+    const compressedParam = searchParams.get('cproject');
+    const projectParam = searchParams.get('project');
+
+    if (compressedParam || projectParam) {
+      const loadFromParam = async () => {
+        try {
+          let jsonStr = '';
+          if (compressedParam) {
+            // GZIP decompression
+            const bytes = Uint8Array.from(atob(compressedParam), (c) => c.charCodeAt(0));
+            const stream = new Blob([bytes]).stream();
+            const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
+            jsonStr = await new Response(decompressedStream).text();
+          } else if (projectParam) {
+            // Standard Unicode-safe base64
+            jsonStr = decodeURIComponent(escape(atob(projectParam)));
+          }
+
+          const decoded = JSON.parse(jsonStr) as PreviewProject;
+          if (!decoded || !decoded.screens) throw new Error('Invalid project structure');
+          setProject(decoded);
+          setCurrentScreenId(decoded.screens[0]?.id || '');
+        } catch (err) {
+          console.error('Preview decode error:', err);
+          setError('Could not decode the preview data. The QR code may be corrupted or your browser is too old.');
+        }
+      };
+      loadFromParam();
       return;
     }
 
     // ── Path B: token-based preview (requires local backend) ─────────
+    const token = searchParams.get('token');
+    const apiBase = searchParams.get('api') || 'http://localhost:3001';
+
     if (!token) {
       setError('No preview token or project data provided.');
       return;
