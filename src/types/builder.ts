@@ -88,6 +88,13 @@ export interface AppComponent {
   locked: boolean;
   visible: boolean;
   zIndex: number;
+  blueprint?: {
+    nodes: any[];
+    conns: any[];
+    params: Record<string, any>;
+    pan: { x: number; y: number };
+    zoom: number;
+  };
 }
 
 export interface AppScreen {

@@ -51,11 +51,24 @@ function nodeH(n:BPNode){
 
 // Reconstruct full blueprint state from saved ComponentLogic[]
 function initBlueprintState(comp: ReturnType<typeof useProjectStore.getState>['components'][string]|null|undefined) {
-  if(!comp||!comp.logic.length) return {nodes:[] as BPNode[],conns:[] as BPConn[],params:{} as Record<string,Record<string,string>>};
+  if(!comp) return {nodes:[] as BPNode[],conns:[] as BPConn[],params:{} as Record<string,Record<string,string>>, pan:{x:60,y:40}, zoom:1};
+  
+  // If we have a saved high-fidelity blueprint, use it
+  if(comp.blueprint) {
+    return {
+      nodes: comp.blueprint.nodes as BPNode[],
+      conns: comp.blueprint.conns as BPConn[],
+      params: comp.blueprint.params as Record<string,Record<string,string>>,
+      pan: comp.blueprint.pan,
+      zoom: comp.blueprint.zoom
+    };
+  }
+
+  // Fallback to reconstruction for legacy components
   const nodes:BPNode[]=[];
   const conns:BPConn[]=[];
   const params:Record<string,Record<string,string>>={};
-  const trigMap:Record<string,string>={}; // triggerType -> nodeId
+  const trigMap:Record<string,string>={};
   let trigRow=0;
   comp.logic.forEach((l,i)=>{
     if(!trigMap[l.trigger]){
@@ -72,7 +85,7 @@ function initBlueprintState(comp: ReturnType<typeof useProjectStore.getState>['c
     const fromId=prev.length===0?trigMap[l.trigger]:`ac_${prev[prev.length-1].id}`;
     conns.push({id:`ci_${l.id}`,from:fromId,to:aid});
   });
-  return {nodes,conns,params};
+  return {nodes,conns,params, pan:{x:60,y:40}, zoom:1};
 }
 
 export const BlueprintEditor = ({onClose}:{onClose:()=>void})=>{
@@ -88,8 +101,8 @@ export const BlueprintEditor = ({onClose}:{onClose:()=>void})=>{
   const [nodes,setNodes]         = useState<BPNode[]>(init.nodes);
   const [conns,setConns]         = useState<BPConn[]>(init.conns);
   const [params,setParams]       = useState<Record<string,Record<string,string>>>(init.params);
-  const [pan,setPan]             = useState({x:60,y:40});
-  const [zoom,setZoom]           = useState(1);
+  const [pan,setPan]             = useState(init.pan);
+  const [zoom,setZoom]           = useState(init.zoom);
   const [dragNode,setDragNode]   = useState<string|null>(null);
   const [dragOff,setDragOff]     = useState({dx:0,dy:0});
   const [panDrag,setPanDrag]     = useState(false);
@@ -174,24 +187,44 @@ export const BlueprintEditor = ({onClose}:{onClose:()=>void})=>{
 
   const save=()=>{
     if(!comp) return;
-    comp.logic.forEach(l=>remL(comp.id,l.id));
+    
+    // 1. Flatten logic for the runtime
+    const logicList: any[] = [];
     nodes.filter(n=>n.category==='event').forEach(ev=>{
-      const chain=(id:string):BPNode[]=>{
-        const c=conns.find(c=>c.from===id);
-        if(!c) return [];
-        const nx=nodes.find(n=>n.id===c.to);
-        if(!nx) return [];
-        return [nx,...chain(nx.id)];
+      const getDownstream = (id:string): BPNode[] => {
+        return conns.filter(c => c.from === id).map(c => nodes.find(n => n.id === c.to)).filter(Boolean) as BPNode[];
       };
-      chain(ev.id).forEach(an=>{
-        if(an.category!=='event') addL(comp.id,{trigger:ev.type as TriggerType,action:an.type as ActionType,params:params[an.id]||{}});
-      });
+      
+      const processChain = (id:string) => {
+        const nextActions = getDownstream(id);
+        nextActions.forEach(an => {
+          logicList.push({ trigger: ev.type as TriggerType, action: an.type as ActionType, params: params[an.id]||{} });
+          processChain(an.id);
+        });
+      };
+      processChain(ev.id);
     });
+
+    // 2. Clear old logic and add new
+    comp.logic.forEach(l=>remL(comp.id,l.id));
+    logicList.forEach(l => addL(comp.id, l));
+
+    // 3. Save high-fidelity blueprint state
+    useProjectStore.getState().updateComponent(comp.id, {
+      blueprint: {
+        nodes,
+        conns,
+        params,
+        pan,
+        zoom
+      }
+    });
+
     onClose();
   };
 
-  const outPt=(n:BPNode, portIdx=0)=>({x:n.x+NW, y:n.y+NH+portIdx*28+14});
-  const inPt =(n:BPNode, portIdx=0)=>({x:n.x,    y:n.y+NH+portIdx*28+14});
+  const outPt=(n:BPNode, portIdx=0)=>({x:n.x+NW, y:n.y+NH+portIdx*32+16});
+  const inPt =(n:BPNode, portIdx=0)=>({x:n.x,    y:n.y+NH+portIdx*32+16});
 
   const cats:NodeCat[]=['event','navigation','data','device','ui','social','logic'];
   const filtered=CATALOGUE.filter(n=>n.label.toLowerCase().includes(search.toLowerCase()));
@@ -294,16 +327,16 @@ export const BlueprintEditor = ({onClose}:{onClose:()=>void})=>{
                   <div style={{borderRadius:14,border:`1.5px solid ${fromPort===node.id?col:isHov?'rgba(255,255,255,0.3)':'rgba(255,255,255,0.09)'}`,
                     background:'rgba(9,9,20,0.97)',backdropFilter:'blur(16px)',
                     boxShadow:fromPort===node.id?`0 0 24px ${col}55,0 8px 32px rgba(0,0,0,0.8)`:isHov?`0 0 16px ${col}44`:'0 8px 32px rgba(0,0,0,0.75)',
-                    overflow:'hidden',transition:'border-color 0.2s,box-shadow 0.2s, transform 0.1s', transform: isHov?'scale(1.02)':'scale(1)'}}>
-                    <div style={{height:NH,display:'flex',alignItems:'center',gap:8,padding:'0 12px',
-                      background:`linear-gradient(135deg,${col}22,${col}08)`,borderBottom:`1px solid ${col}28`,cursor:'grab',flexShrink:0}}>
-                      <div style={{width:10,height:10,borderRadius:'50%',background:col,boxShadow:`0 0 10px ${col},0 0 4px ${col}`,flexShrink:0}}/>
-                      <span style={{flex:1,fontSize:10,fontWeight:700,color:'#fff',textTransform:'uppercase',letterSpacing:'.06em',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{node.label}</span>
-                      <span style={{fontSize:8,color:col,textTransform:'uppercase',letterSpacing:'.1em',opacity:.7,flexShrink:0}}>{node.category}</span>
+                    overflow:'hidden',transition:'border-color 0.2s,box-shadow 0.2s, transform 0.1s', transform: isHov?'scale(1.02)':'scale(1)'}}>                    <div style={{height:NH,display:'flex',alignItems:'center',gap:10,padding:'0 14px',
+                      background:`linear-gradient(135deg,${col}33,${col}11)`,borderBottom:`1px solid ${col}22`,cursor:'grab',flexShrink:0}}>
+                      <div style={{width:10,height:10,borderRadius:'50%',background:col,boxShadow:`0 0 12px ${col}`,flexShrink:0}}/>
+                      <span style={{flex:1,fontSize:11,fontWeight:800,color:'#fff',textTransform:'uppercase',letterSpacing:'.08em',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{node.label}</span>
+                      <span style={{fontSize:9,color:col,fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',opacity:.8,flexShrink:0}}>{node.category}</span>
                       <button onMouseDown={e=>e.stopPropagation()} onClick={()=>delNode(node.id)}
-                        style={{background:'none',border:'none',color:'rgba(255,255,255,0.2)',cursor:'pointer',fontSize:16,lineHeight:1,padding:'1px 3px',flexShrink:0,transition:'color 0.15s'}}
-                        onMouseEnter={e=>(e.currentTarget.style.color='#FF6B6B')} onMouseLeave={e=>(e.currentTarget.style.color='rgba(255,255,255,0.2)')}>×</button>
+                        style={{background:'none',border:'none',color:'rgba(255,255,255,0.25)',cursor:'pointer',fontSize:18,lineHeight:1,padding:'2px 4px',flexShrink:0,transition:'all 0.2s'}}
+                        onMouseEnter={e=>(e.currentTarget.style.color='#FF4444')} onMouseLeave={e=>(e.currentTarget.style.color='rgba(255,255,255,0.25)')}>×</button>
                     </div>
+>
                     {def&&def.params.length>0&&(
                       <div style={{padding:'8px 10px',display:'flex',flexDirection:'column',gap:6}} onMouseDown={e=>e.stopPropagation()}>
                         {def.params.map(p=>(
@@ -335,28 +368,28 @@ export const BlueprintEditor = ({onClose}:{onClose:()=>void})=>{
                   <div style={{position:'absolute', inset:0, pointerEvents:'none'}}>
                     {/* Inputs */}
                     {def?.inputs?.map((inp, idx) => (
-                      <div key={inp.id} style={{position:'absolute', left:-10, top:NH+idx*28+4, display:'flex', alignItems:'center', gap:6, pointerEvents:'auto'}}>
+                      <div key={inp.id} style={{position:'absolute', left:-12, top:NH+idx*32+6, display:'flex', alignItems:'center', gap:10, pointerEvents:'auto'}}>
                         <Port col={col} onClick={e=>clickIn(e,node.id,inp.id)}/>
-                        <span style={{fontSize:8, color:'rgba(255,255,255,0.4)', fontWeight:600, textTransform:'uppercase'}}>{inp.label}</span>
+                        <span style={{fontSize:9, color:'rgba(255,255,255,0.35)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em'}}>{inp.label}</span>
                       </div>
                     ))}
                     {/* Default input for simple nodes */}
                     {node.category!=='event' && (!def?.inputs || def.inputs.length===0) && (
-                      <div style={{position:'absolute', left:-10, top:NH/2-10, pointerEvents:'auto'}}>
+                      <div style={{position:'absolute', left:-12, top:NH/2-10, pointerEvents:'auto'}}>
                         <Port col={col} onClick={e=>clickIn(e,node.id)}/>
                       </div>
                     )}
 
                     {/* Outputs */}
                     {def?.outputs?.map((out, idx) => (
-                      <div key={out.id} style={{position:'absolute', right:-10, top:NH+idx*28+4, display:'flex', alignItems:'center', gap:6, pointerEvents:'auto', flexDirection:'row-reverse'}}>
+                      <div key={out.id} style={{position:'absolute', right:-12, top:NH+idx*32+6, display:'flex', alignItems:'center', gap:10, pointerEvents:'auto', flexDirection:'row-reverse'}}>
                         <Port col={col} onClick={e=>setFromPort(`${node.id}:${out.id}`)}/>
-                        <span style={{fontSize:8, color:'rgba(255,255,255,0.4)', fontWeight:600, textTransform:'uppercase'}}>{out.label}</span>
+                        <span style={{fontSize:9, color:'rgba(255,255,255,0.35)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em'}}>{out.label}</span>
                       </div>
                     ))}
                     {/* Default output for simple nodes */}
                     {(!def?.outputs || def.outputs.length===0) && (
-                      <div style={{position:'absolute', right:-10, top:NH/2-10, pointerEvents:'auto'}}>
+                      <div style={{position:'absolute', right:-12, top:NH/2-10, pointerEvents:'auto'}}>
                         <Port col={col} onClick={e=>setFromPort(`${node.id}:out`)}/>
                       </div>
                     )}
