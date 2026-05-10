@@ -9,6 +9,7 @@ import Builder from "./pages/Builder.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { NativeRenderer } from "./pages/NativeRenderer.tsx";
 import { PhonePreview } from "./pages/PhonePreview.tsx";
+import Guide from "./pages/Guide.tsx";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/builder" element={<Builder />} />
               <Route path="/preview" element={<PhonePreview />} />
+              <Route path="/guide" element={<Guide />} />
               <Route path="*" element={<NotFound />} />
             </>
           )}

@@ -20,9 +20,9 @@ import {
   Play,
   Zap,
   Check,
-  Github,
   Figma,
   Download,
+  BookOpen,
 } from "lucide-react";
 import { useProjectStore } from "@/stores/projectStore";
 import { LoginPanel } from "@/components/builder/LoginPanel";
@@ -58,9 +58,9 @@ const Index = () => {
             <span className="text-lg font-bold tracking-tight">Forge</span>
           </a>
           <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
+            <Link to="/guide" className="transition hover:text-foreground">Guide</Link>
             <a href="#builder" className="transition hover:text-foreground">Builder</a>
             <a href="#features" className="transition hover:text-foreground">Features</a>
-            <a href="#templates" className="transition hover:text-foreground">Templates</a>
             <a href="#pricing" className="transition hover:text-foreground">Pricing</a>
           </nav>
           <div className="flex items-center gap-2">
@@ -100,9 +100,11 @@ const Index = () => {
               >
                 Open the builder <ArrowRight className="ml-1" />
               </Button>
-              <Button size="lg" variant="outline" className="glass border-white/10 hover:bg-white/5">
-                <Play className="mr-1" /> Watch 90s demo
-              </Button>
+              <Link to="/guide">
+                <Button size="lg" variant="outline" className="glass border-white/10 hover:bg-white/5">
+                  <BookOpen className="mr-2 h-4 w-4" /> Read the Guide
+                </Button>
+              </Link>
             </div>
             <div className="flex items-center gap-6 pt-2 text-xs text-muted-foreground">
               <div className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-brand-cyan" /> No code</div>
