@@ -35,7 +35,9 @@ const CATALOGUE = [
 ];
 
 const NW = 210;
-const NH = 40;
+const NH = 40;   // node header height
+const PORT_SIZE = 20;  // port circle diameter
+const PORT_ROW  = 28;  // spacing between rows of ports
 
 function bez(x1:number,y1:number,x2:number,y2:number){
   const d=Math.abs(x2-x1)*0.55;
@@ -45,9 +47,38 @@ function bez(x1:number,y1:number,x2:number,y2:number){
 function nodeH(n:BPNode){
   const def=ACTION_DEFINITIONS.find(a=>a.type===n.type);
   const paramH = (def?.params.length||0)*34;
-  const portH = Math.max(def?.inputs?.length||0, def?.outputs?.length||0)*28;
+  const portRows = Math.max((def?.inputs?.length||0), (def?.outputs?.length||0));
+  const portH = portRows > 0 ? portRows * PORT_ROW + 8 : 0;
   return NH + paramH + portH + 8;
 }
+
+/**
+ * Returns the canvas-space centre of a node's OUTPUT port.
+ * Ports start at top: NH + 6 (padding-top of port section),
+ * each row is PORT_ROW tall, port circle is PORT_SIZE, so centre
+ * = NH + 6 + portIdx * PORT_ROW + PORT_SIZE/2
+ * The port div sits at right:-12 which centres on the right edge:
+ * x = n.x + NW + PORT_SIZE/2 - 12   but the outer div clips, so
+ * actual DOM right edge centre = n.x + NW + 2  (half of 4px bleed)
+ */
+const outPt = (n: BPNode, portIdx = 0) => ({
+  x: n.x + NW + 2,
+  y: n.y + NH + 6 + portIdx * PORT_ROW + PORT_SIZE / 2,
+});
+
+/**
+ * Returns the canvas-space centre of a node's INPUT port.
+ * Symmetric to outPt but on the left side.
+ */
+const inPt = (n: BPNode, portIdx = 0) => ({
+  x: n.x - 2,
+  y: n.y + NH + 6 + portIdx * PORT_ROW + PORT_SIZE / 2,
+});
+
+/** Centre of the default single input port (no named ports) — sits at NH/2-10 => centre at NH/2 */
+const defaultInPt  = (n: BPNode) => ({ x: n.x - 2,      y: n.y + NH / 2 });
+const defaultOutPt = (n: BPNode) => ({ x: n.x + NW + 2, y: n.y + NH / 2 });
+
 
 // Reconstruct full blueprint state from saved ComponentLogic[]
 function initBlueprintState(comp: ReturnType<typeof useProjectStore.getState>['components'][string]|null|undefined) {
@@ -223,8 +254,7 @@ export const BlueprintEditor = ({onClose}:{onClose:()=>void})=>{
     onClose();
   };
 
-  const outPt=(n:BPNode, portIdx=0)=>({x:n.x+NW, y:n.y+NH+portIdx*32+16});
-  const inPt =(n:BPNode, portIdx=0)=>({x:n.x,    y:n.y+NH+portIdx*32+16});
+  // outPt / inPt are now defined at module level (see above)
 
   const cats:NodeCat[]=['event','navigation','data','device','ui','social','logic'];
   const filtered=CATALOGUE.filter(n=>n.label.toLowerCase().includes(search.toLowerCase()));
@@ -277,19 +307,26 @@ export const BlueprintEditor = ({onClose}:{onClose:()=>void})=>{
           </svg>
 
           <div style={{position:'absolute',inset:0,transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`,transformOrigin:'0 0'}}>
-            <svg style={{position:'absolute',left:'-5000px',top:'-5000px',width:'15000px',height:'15000px',overflow:'visible',pointerEvents:'none'}}>
-              <g transform="translate(5000,5000)">
+            {/* Connections SVG — lives in the same coordinate space as the node divs */}
+            <svg style={{position:'absolute',left:0,top:0,width:'100%',height:'100%',overflow:'visible',pointerEvents:'none'}}>
               {conns.map(c=>{
                 const f=nodes.find(n=>n.id===c.from), t=nodes.find(n=>n.id===c.to);
                 if(!f||!t) return null;
-                
+
                 const fDef = ACTION_DEFINITIONS.find(a=>a.type===f.type);
                 const tDef = ACTION_DEFINITIONS.find(a=>a.type===t.type);
-                
-                const fIdx = fDef?.outputs?.findIndex(o=>o.id===c.fromPort)??0;
-                const tIdx = tDef?.inputs?.findIndex(i=>i.id===c.toPort)??0;
 
-                const fp=outPt(f, fIdx=== -1 ? 0 : fIdx), tp=inPt(t, tIdx=== -1 ? 0 : tIdx), col=CAT_COLOR[f.category], hov=hovConn===c.id;
+                const hasOutPorts = (fDef?.outputs?.length ?? 0) > 0;
+                const hasInPorts  = (tDef?.inputs?.length  ?? 0) > 0;
+
+                const fIdx = hasOutPorts ? Math.max(0, fDef!.outputs!.findIndex(o=>o.id===c.fromPort)) : -1;
+                const tIdx = hasInPorts  ? Math.max(0, tDef!.inputs!.findIndex(i=>i.id===c.toPort))   : -1;
+
+                const fp = hasOutPorts ? outPt(f, fIdx) : defaultOutPt(f);
+                const tp = hasInPorts  ? inPt(t, tIdx)  : defaultInPt(t);
+
+                const col = CAT_COLOR[f.category];
+                const hov = hovConn === c.id;
                 return <g key={c.id} style={{pointerEvents:'stroke' as any,cursor:'pointer'}}
                   onMouseEnter={()=>setHovConn(c.id)} onMouseLeave={()=>setHovConn(null)}
                   onClick={()=>delConn(c.id)}>
@@ -308,12 +345,13 @@ export const BlueprintEditor = ({onClose}:{onClose:()=>void})=>{
                 const [fnid, fpid] = fromPort.split(':');
                 const f=nodes.find(n=>n.id===fnid); if(!f) return null;
                 const fDef = ACTION_DEFINITIONS.find(a=>a.type===f.type);
-                const fIdx = fDef?.outputs?.findIndex(o=>o.id===fpid)??0;
-                const fp=outPt(f, fIdx=== -1 ? 0 : fIdx), col=CAT_COLOR[f.category];
+                const hasOutPorts = (fDef?.outputs?.length ?? 0) > 0;
+                const fIdx = hasOutPorts ? Math.max(0, fDef!.outputs!.findIndex(o=>o.id===fpid)) : -1;
+                const fp = hasOutPorts ? outPt(f, fIdx) : defaultOutPt(f);
+                const col=CAT_COLOR[f.category];
                 return <path className="flow-line" d={bez(fp.x,fp.y,mouse.x,mouse.y)} fill="none" stroke={col} strokeWidth={2.5}
                   strokeOpacity={0.75} strokeDasharray="8 5" style={{filter:`drop-shadow(0 0 6px ${col}88)`}}/>;
               })()}
-              </g>
             </svg>
 
             {nodes.map(node=>{
@@ -365,30 +403,40 @@ export const BlueprintEditor = ({onClose}:{onClose:()=>void})=>{
                   </div>
                   {/* Ports Rendering */}
                   <div style={{position:'absolute', inset:0, pointerEvents:'none'}}>
-                    {/* Inputs */}
+                    {/* Named inputs */}
                     {def?.inputs?.map((inp, idx) => (
-                      <div key={inp.id} style={{position:'absolute', left:-12, top:NH+idx*32+6, display:'flex', alignItems:'center', gap:10, pointerEvents:'auto'}}>
+                      <div key={inp.id} style={{
+                        position:'absolute',
+                        left: -PORT_SIZE / 2,
+                        top: NH + 6 + idx * PORT_ROW,
+                        display:'flex', alignItems:'center', gap:10, pointerEvents:'auto'
+                      }}>
                         <Port col={col} onClick={e=>clickIn(e,node.id,inp.id)}/>
-                        <span style={{fontSize:9, color:'rgba(255,255,255,0.35)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em'}}>{inp.label}</span>
+                        <span style={{fontSize:9, color:'rgba(255,255,255,0.35)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginLeft: PORT_SIZE + 4}}>{inp.label}</span>
                       </div>
                     ))}
-                    {/* Default input for simple nodes */}
+                    {/* Default input (no named ports) */}
                     {node.category!=='event' && (!def?.inputs || def.inputs.length===0) && (
-                      <div style={{position:'absolute', left:-12, top:NH/2-10, pointerEvents:'auto'}}>
+                      <div style={{position:'absolute', left: -PORT_SIZE / 2, top: NH / 2 - PORT_SIZE / 2, pointerEvents:'auto'}}>
                         <Port col={col} onClick={e=>clickIn(e,node.id)}/>
                       </div>
                     )}
 
-                    {/* Outputs */}
+                    {/* Named outputs */}
                     {def?.outputs?.map((out, idx) => (
-                      <div key={out.id} style={{position:'absolute', right:-12, top:NH+idx*32+6, display:'flex', alignItems:'center', gap:10, pointerEvents:'auto', flexDirection:'row-reverse'}}>
+                      <div key={out.id} style={{
+                        position:'absolute',
+                        right: -PORT_SIZE / 2,
+                        top: NH + 6 + idx * PORT_ROW,
+                        display:'flex', alignItems:'center', gap:10, pointerEvents:'auto', flexDirection:'row-reverse'
+                      }}>
                         <Port col={col} onClick={e=>setFromPort(`${node.id}:${out.id}`)}/>
-                        <span style={{fontSize:9, color:'rgba(255,255,255,0.35)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em'}}>{out.label}</span>
+                        <span style={{fontSize:9, color:'rgba(255,255,255,0.35)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginRight: PORT_SIZE + 4}}>{out.label}</span>
                       </div>
                     ))}
-                    {/* Default output for simple nodes */}
+                    {/* Default output */}
                     {(!def?.outputs || def.outputs.length===0) && (
-                      <div style={{position:'absolute', right:-12, top:NH/2-10, pointerEvents:'auto'}}>
+                      <div style={{position:'absolute', right: -PORT_SIZE / 2, top: NH / 2 - PORT_SIZE / 2, pointerEvents:'auto'}}>
                         <Port col={col} onClick={e=>setFromPort(`${node.id}:out`)}/>
                       </div>
                     )}
@@ -514,13 +562,13 @@ const Btn=({children,onClick,accent}:{children:React.ReactNode,onClick:()=>void,
   </button>
 );
 
-const Port=({x,y,col,onClick}:{x:number,y:number,col:string,onClick:(e:React.MouseEvent)=>void})=>(
+const Port=({col,onClick}:{col:string,onClick:(e:React.MouseEvent)=>void})=>(
   <div onClick={onClick} onMouseDown={e=>e.stopPropagation()}
-    style={{position:'absolute',left:x,top:y,width:20,height:20,borderRadius:'50%',background:'#09091A',
+    style={{width:PORT_SIZE,height:PORT_SIZE,borderRadius:'50%',background:'#09091A',
       border:`2.5px solid ${col}`,cursor:'crosshair',zIndex:20,display:'flex',alignItems:'center',justifyContent:'center',
-      boxShadow:`0 0 10px ${col}44`,transition:'box-shadow 0.15s'}}
-    onMouseEnter={e=>(e.currentTarget.style.boxShadow=`0 0 18px ${col}`)}
-    onMouseLeave={e=>(e.currentTarget.style.boxShadow=`0 0 10px ${col}44`)}>
+      boxShadow:`0 0 10px ${col}44`,transition:'box-shadow 0.15s,transform 0.15s',flexShrink:0}}
+    onMouseEnter={e=>(e.currentTarget.style.boxShadow=`0 0 18px ${col}`,e.currentTarget.style.transform='scale(1.2)')}
+    onMouseLeave={e=>(e.currentTarget.style.boxShadow=`0 0 10px ${col}44`,e.currentTarget.style.transform='scale(1)')}>
     <div style={{width:8,height:8,borderRadius:'50%',background:col}}/>
   </div>
 );

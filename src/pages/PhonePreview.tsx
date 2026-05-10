@@ -21,11 +21,25 @@ export const PhonePreview = () => {
 
   useEffect(() => {
     const token = searchParams.get('token');
+    const projectParam = searchParams.get('project');
     // api param tells us where the backend is (e.g. http://192.168.1.5:3001)
     const apiBase = searchParams.get('api') || 'http://localhost:3001';
 
+    // ── Path A: base64-encoded project (Vercel / no backend) ─────────
+    if (projectParam) {
+      try {
+        const decoded = JSON.parse(atob(projectParam)) as PreviewProject;
+        setProject(decoded);
+        setCurrentScreenId(decoded.screens[0]?.id || '');
+      } catch {
+        setError('Could not decode the preview data. The QR code may be corrupted or expired.');
+      }
+      return;
+    }
+
+    // ── Path B: token-based preview (requires local backend) ─────────
     if (!token) {
-      setError('No preview token provided.');
+      setError('No preview token or project data provided.');
       return;
     }
 
@@ -36,8 +50,10 @@ export const PhonePreview = () => {
         const data: PreviewProject = await res.json();
         setProject(data);
         setCurrentScreenId(data.screens[0]?.id || '');
-      } catch (e: any) {
-        setError('Could not load preview. Make sure the backend server is running and your phone is on the same WiFi network.');
+      } catch {
+        setError(
+          'Could not load preview. Make sure the backend server is running and your phone is on the same WiFi network.'
+        );
       }
     };
 
@@ -55,7 +71,7 @@ export const PhonePreview = () => {
           <p className="text-xs text-white/35 leading-relaxed max-w-xs">{error}</p>
         </div>
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 w-full max-w-xs">
-          <p className="text-[10px] text-white/30 font-medium mb-1">Make sure you ran:</p>
+          <p className="text-[10px] text-white/30 font-medium mb-1">For local network preview, run:</p>
           <code className="font-mono text-[11px] text-violet-300">node server.js</code>
         </div>
       </div>
@@ -73,36 +89,45 @@ export const PhonePreview = () => {
     );
   }
 
-  const currentScreen = project.screens.find(s => s.id === currentScreenId);
+  const currentScreen = project.screens.find((s) => s.id === currentScreenId);
   const screenComps = Object.values(project.components)
-    .filter(c => c.screenId === currentScreenId && c.visible)
+    .filter((c) => c.screenId === currentScreenId && c.visible)
     .sort((a, b) => a.zIndex - b.zIndex);
 
   const navigate = (screenId: string) => {
-    setHistory(h => [...h, currentScreenId]);
+    setHistory((h) => [...h, currentScreenId]);
     setCurrentScreenId(screenId);
   };
 
   const goBack = () => {
     if (history.length === 0) return;
     setCurrentScreenId(history[history.length - 1]);
-    setHistory(h => h.slice(0, -1));
+    setHistory((h) => h.slice(0, -1));
   };
 
   const handleComponentClick = (comp: AppComponent) => {
-    const triggers = comp.logic?.filter(l => l.trigger === 'on_click') || [];
-    triggers.forEach(t => {
+    const triggers = comp.logic?.filter((l) => l.trigger === 'on_click') || [];
+    triggers.forEach((t) => {
       switch (t.action) {
-        case 'navigate': if (t.params.screenId) navigate(t.params.screenId); break;
-        case 'go_back': goBack(); break;
+        case 'navigate':
+          if (t.params.screenId) navigate(t.params.screenId);
+          break;
+        case 'go_back':
+          goBack();
+          break;
         case 'show_toast':
           setToast(t.params.message || 'Toast');
           setTimeout(() => setToast(null), 3000);
           break;
-        case 'show_alert': alert(`${t.params.title || ''}\n${t.params.message || ''}`); break;
-        case 'open_url': if (t.params.url) window.open(t.params.url, '_blank'); break;
+        case 'show_alert':
+          alert(`${t.params.title || ''}\n${t.params.message || ''}`);
+          break;
+        case 'open_url':
+          if (t.params.url) window.open(t.params.url, '_blank');
+          break;
         case 'set_variable':
-          if (t.params.variableId) setLocalVars(prev => ({ ...prev, [t.params.variableId]: t.params.value }));
+          if (t.params.variableId)
+            setLocalVars((prev) => ({ ...prev, [t.params.variableId]: t.params.value }));
           break;
       }
     });
@@ -121,7 +146,7 @@ export const PhonePreview = () => {
 
       {/* Components */}
       <div className="relative flex-1 overflow-hidden">
-        {screenComps.map(comp => (
+        {screenComps.map((comp) => (
           <div
             key={comp.id}
             style={{
@@ -139,7 +164,9 @@ export const PhonePreview = () => {
               zoom={1}
               isInteractive={true}
               localVariables={localVars}
-              onVariableChange={(vid, val) => setLocalVars(p => ({ ...p, [vid]: val }))}
+              onVariableChange={(vid, val) =>
+                setLocalVars((p) => ({ ...p, [vid]: val }))
+              }
             />
           </div>
         ))}

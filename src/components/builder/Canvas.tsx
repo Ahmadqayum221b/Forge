@@ -38,26 +38,39 @@ export const Canvas = () => {
   const [snapLines, setSnapLines] = useState<{ x: number | null, y: number | null }>({ x: null, y: null });
 
   const handleCanvasClick = (e: React.MouseEvent) => {
-    const isDevice = e.target === deviceRef.current || (e.target as HTMLElement).classList.contains('device-screen');
-    
-    if (isDevice) {
+    // Walk up from the clicked element to see if we are inside the device screen div
+    const target = e.target as HTMLElement;
+    const isInsideDevice = deviceRef.current?.contains(target);
+
+    if (isInsideDevice) {
       if (activeTool !== 'select') {
         const rect = deviceRef.current!.getBoundingClientRect();
         const x = (e.clientX - rect.left) / canvasZoom;
         const y = (e.clientY - rect.top) / canvasZoom;
-        
+
+        // Map every tool to a component type
         let typeToAdd: ComponentType = 'container';
-        if (activeTool === 'rect') typeToAdd = 'container';
-        else if (activeTool === 'circle') typeToAdd = 'avatar'; // Using avatar as circle for now
+        if (activeTool === 'rect')                              typeToAdd = 'container';
+        else if (activeTool === 'circle')                       typeToAdd = 'avatar';
         else if (activeTool === 'text' || activeTool === 'heading') typeToAdd = 'text';
-        
-        addComponent(typeToAdd, x - 50, y - 20);
+        else if (activeTool === 'line' || activeTool === 'arrow')  typeToAdd = 'container';
+        else if (activeTool === 'pen')                          typeToAdd = 'container';
+        else if (activeTool === 'comment')                      typeToAdd = 'text';
+        // 'ai', 'scale' etc. fall through to 'container' default
+
+        addComponent(typeToAdd, Math.max(0, x - 50), Math.max(0, y - 20));
         setActiveTool('select');
       } else {
-        selectComponent(null);
+        // Only deselect if clicking on the empty screen background, not a component
+        const isScreenBg =
+          target === deviceRef.current ||
+          target.classList.contains('device-screen') ||
+          target.classList.contains('device-screen-empty');
+        if (isScreenBg) selectComponent(null);
       }
     }
   };
+
 
   // ── Drop handler for new components from tray ──
   const handleDragOver = (e: React.DragEvent) => {
@@ -226,6 +239,8 @@ export const Canvas = () => {
             height: scaledHeight,
             borderRadius: `${frame.radius * canvasZoom}px`,
             backgroundColor: activeScreen?.backgroundColor || '#0C0A1A',
+            // Show crosshair cursor when a draw tool is active
+            cursor: activeTool !== 'select' ? 'crosshair' : 'default',
           }}
         >
           {/* Status bar */}
@@ -264,13 +279,15 @@ export const Canvas = () => {
 
           {/* Empty state */}
           {screenComponents.length === 0 && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/20">
+            <div className="device-screen-empty absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/20">
               <div
                 className="rounded-2xl border-2 border-dashed border-white/10 p-6 text-center"
                 style={{ fontSize: `${12 * canvasZoom}px` }}
               >
-                <p className="font-medium">Drop components here</p>
-                <p className="mt-1 opacity-60">Drag from the left panel or click to add</p>
+                <p className="font-medium">
+                  {activeTool !== 'select' ? `Click to place ${activeTool}` : 'Drop components here'}
+                </p>
+                <p className="mt-1 opacity-60">Drag from the left panel or click a tool then click here</p>
               </div>
             </div>
           )}

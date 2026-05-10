@@ -143,6 +143,7 @@ export const APKGenerator = () => {
   const [pkgName, setPkgName] = useState(settings.packageName);
   const [version, setVersion] = useState(settings.version);
   const [errorMsg, setErrorMsg] = useState('');
+  const [backendWasUp, setBackendWasUp] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const elapsed = useElapsedTime(phase === 'building');
 
@@ -162,21 +163,43 @@ export const APKGenerator = () => {
     }
   };
 
+  /** True if the local Forge backend (server.js) is reachable. */
+  const checkBackend = async (): Promise<boolean> => {
+    try {
+      await fetch('http://localhost:3001/api/ip', { signal: AbortSignal.timeout(2000) });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  /** Trigger a real JSON project-file download (works on Vercel). */
+  const downloadProjectJson = () => {
+    const state = useProjectStore.getState();
+    const data = {
+      appName,
+      packageName: pkgName,
+      version,
+      screens:       state.screens,
+      components:    state.components,
+      variables:     state.variables,
+      nativeFeatures: state.nativeFeatures,
+      settings:      state.settings,
+      exportedAt:    new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `${appName.replace(/\s+/g, '_')}_forge_project.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleBuild = async () => {
     setPhase('building');
     setBuildStep(0);
     setVisibleLogs([]);
-
-    // Steps 0 & 1 are simulated
-    for (let i = 0; i < 2; i++) {
-      setBuildStep(i);
-      await streamLogs(i);
-      await new Promise(r => setTimeout(r, 400));
-    }
-
-    // Step 2 — real API call (Gradle)
-    setBuildStep(2);
-    setVisibleLogs(prev => [...prev, '> ./gradlew assembleDebug']);
 
     const state = useProjectStore.getState();
     const payload = {
@@ -185,47 +208,65 @@ export const APKGenerator = () => {
       variables: state.variables, nativeFeatures: state.nativeFeatures,
     };
 
+    // Steps 0 & 1 are always simulated (export + sync)
+    for (let i = 0; i < 2; i++) {
+      setBuildStep(i);
+      await streamLogs(i);
+      await new Promise(r => setTimeout(r, 400));
+    }
+
+    // Step 2 — Gradle
+    setBuildStep(2);
+    setVisibleLogs(prev => [...prev, '> ./gradlew assembleDebug']);
+
     try {
-      if (window.location.hostname !== 'localhost') {
-        // Simulation mode for production/Vercel
-        setVisibleLogs(prev => [...prev, '! Note: Running in Simulation Mode (No local backend detected)']);
-        await new Promise(r => setTimeout(r, 2000));
-        
-        // Simulate Gradle progress
-        const gradleLogs = BUILD_STEPS[2].logs.slice(1);
-        for (const line of gradleLogs) {
-          await new Promise(r => setTimeout(r, 400 + Math.random() * 300));
+      // Probe backend with short timeout before deciding path
+      const backendUp = await checkBackend();
+      setBackendWasUp(backendUp);
+
+      if (!backendUp) {
+        // ── No local backend — simulation + JSON export ───────────────
+        setVisibleLogs(prev => [...prev,
+          '! Local backend not detected — running in Preview Mode',
+          '! Run node server.js locally to compile a real APK',
+        ]);
+        await new Promise(r => setTimeout(r, 1000));
+
+        for (const line of BUILD_STEPS[2].logs.slice(1)) {
+          await new Promise(r => setTimeout(r, 350 + Math.random() * 250));
           setVisibleLogs(prev => [...prev, line]);
           setTimeout(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, 50);
         }
       } else {
+        // ── Backend is up — real Gradle build ────────────────────────
         const response = await fetch('http://localhost:3001/api/build', {
-          method: 'POST',
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body:    JSON.stringify(payload),
         });
 
-        if (!response.ok) throw new Error(await response.text());
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `Server returned ${response.status}`);
+        }
 
-        // Finish log stream for step 2 (skip first line already added)
-        const gradleLogs = BUILD_STEPS[2].logs.slice(1);
-        for (const line of gradleLogs) {
+        for (const line of BUILD_STEPS[2].logs.slice(1)) {
           await new Promise(r => setTimeout(r, 300 + Math.random() * 200));
           setVisibleLogs(prev => [...prev, line]);
           setTimeout(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, 50);
         }
 
-        // Trigger real download only on localhost
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
+        // Real APK download
+        const blob = await response.clone().blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
         a.download = `${appName.replace(/\s+/g, '_')}_debug.apk`;
         a.click();
         URL.revokeObjectURL(url);
       }
 
-      // Steps 3 & 4 (Sign & Package) - common for both real and simulation
+      // Steps 3 & 4 (Sign & Package) — common
       for (let i = 3; i < BUILD_STEPS.length; i++) {
         setBuildStep(i);
         await streamLogs(i);
@@ -270,9 +311,8 @@ export const APKGenerator = () => {
                 <h3 className="text-base font-bold text-white">Generate Native APK</h3>
               </div>
               <p className="ml-9 text-xs text-white/35">
-                {window.location.hostname === 'localhost' 
-                  ? 'Compiles a real Android app via your local Gradle backend'
-                  : 'Simulation: Real APK compilation requires the Forge local backend'}
+                Compiles a real Android app if the local backend is running,
+                otherwise simulates the build and exports your project as JSON.
               </p>
             </div>
 
@@ -441,42 +481,87 @@ export const APKGenerator = () => {
                 <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-500/15 border border-emerald-500/30">
                   <Check className="h-10 w-10 text-emerald-400" strokeWidth={2.5} />
                 </div>
-                {/* Glow rings */}
                 <div className="absolute inset-0 rounded-3xl bg-emerald-500/10 animate-ping" style={{ animationDuration: '2s' }} />
               </div>
               <div className="text-center">
-                <h3 className="text-lg font-bold text-white">APK Ready!</h3>
-                <p className="text-xs text-white/40">Your download started automatically</p>
+                <h3 className="text-lg font-bold text-white">
+                  {!backendWasUp ? 'Build Simulated!' : 'APK Ready!'}
+                </h3>
+                <p className="text-xs text-white/40">
+                  {!backendWasUp
+                    ? 'Export your project JSON to continue locally'
+                    : 'Your APK download started automatically'}
+                </p>
               </div>
             </div>
 
-            {/* File info */}
-            <div className="mb-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15">
-                  <Smartphone className="h-5 w-5 text-emerald-400" />
+            {/* File info — backend up vs no backend */}
+            {!backendWasUp ? (
+              <>
+                {/* JSON export card */}
+                <div className="mb-4 rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/15">
+                      <Download className="h-5 w-5 text-violet-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-white truncate">{appName.replace(/\s+/g, '_')}_forge_project.json</div>
+                      <div className="text-xs text-white/35">Complete project · Import into Forge locally</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={downloadProjectJson}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600/80 py-2 text-xs font-semibold text-white hover:bg-violet-600 transition"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Download Project JSON
+                  </button>
                 </div>
-                <div>
-                  <div className="text-sm font-semibold text-white">{appName.replace(/\s+/g, '_')}_debug.apk</div>
-                  <div className="text-xs text-white/35">Debug build · Android · {elapsed} compile time</div>
-                </div>
-              </div>
-            </div>
 
-            {/* Install instructions */}
-            <div className="mb-5 space-y-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-              <p className="text-xs font-semibold text-white/50 mb-2">How to install on your device</p>
-              {[
-                'Enable "Install unknown apps" in Android settings',
-                'Transfer the APK to your phone (USB, email, Drive)',
-                'Tap the APK file to install → Launch app',
-              ].map((step, i) => (
-                <div key={i} className="flex items-center gap-2.5 text-xs text-white/40">
-                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[10px] font-bold text-white/50">{i + 1}</div>
-                  {step}
+                {/* Local backend note */}
+                <div className="mb-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2">
+                  <p className="text-xs font-semibold text-white/50">To compile a real APK</p>
+                  {[
+                    'Clone the Forge repo on your machine',
+                    'Run the local backend: node server.js',
+                    'Click "Generate APK" — Gradle builds & downloads the .apk',
+                  ].map((step, i) => (
+                    <div key={i} className="flex items-center gap-2.5 text-xs text-white/40">
+                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[10px] font-bold text-white/50">{i + 1}</div>
+                      {step}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            ) : (
+              <>
+                {/* Real APK info */}
+                <div className="mb-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15">
+                      <Smartphone className="h-5 w-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-white">{appName.replace(/\s+/g, '_')}_debug.apk</div>
+                      <div className="text-xs text-white/35">Debug build · Android · {elapsed} compile time</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mb-5 space-y-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                  <p className="text-xs font-semibold text-white/50 mb-2">How to install on your device</p>
+                  {[
+                    'Enable "Install unknown apps" in Android settings',
+                    'Transfer the APK to your phone (USB, email, Drive)',
+                    'Tap the APK file to install → Launch app',
+                  ].map((step, i) => (
+                    <div key={i} className="flex items-center gap-2.5 text-xs text-white/40">
+                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[10px] font-bold text-white/50">{i + 1}</div>
+                      {step}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             <div className="flex gap-2">
               <button
