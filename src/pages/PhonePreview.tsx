@@ -97,6 +97,12 @@ export const PhonePreview = () => {
     .filter((c) => c.screenId === currentScreenId && c.visible)
     .sort((a, b) => a.zIndex - b.zIndex);
 
+  // ── Scaling Logic ────────────────────────────────────────────────
+  // Get design width from project settings or default to Pixel 8 (412px)
+  const designWidth = project.settings?.deviceFrame ? (project.settings.deviceFrame === 'iphone15' ? 393 : (project.settings.deviceFrame === 'pixel8' ? 412 : 400)) : 412;
+  const actualWidth = window.innerWidth;
+  const scale = actualWidth / designWidth;
+
   const navigate = (screenId: string) => {
     setHistory((h) => [...h, currentScreenId]);
     setCurrentScreenId(screenId);
@@ -147,8 +153,8 @@ export const PhonePreview = () => {
         <span className="text-[9px] tracking-wider">●●●● 5G</span>
       </div>
 
-      {/* Components */}
-      <div className="relative flex-1 overflow-hidden">
+      {/* Components Container with Scaling */}
+      <div className="relative flex-1 overflow-hidden origin-top-left" style={{ width: designWidth, transform: `scale(${scale})` }}>
         {screenComps.map((comp) => (
           <div
             key={comp.id}
@@ -175,7 +181,7 @@ export const PhonePreview = () => {
         ))}
 
         {screenComps.length === 0 && (
-          <div className="flex h-full flex-col items-center justify-center text-white/20 text-sm gap-2">
+          <div className="flex h-full flex-col items-center justify-center text-white/20 text-sm gap-2" style={{ transform: `scale(${1/scale})` }}>
             <Smartphone className="h-8 w-8 opacity-50" />
             <span>Empty screen</span>
           </div>
