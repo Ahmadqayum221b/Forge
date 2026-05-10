@@ -20,6 +20,7 @@ import {
   Play,
   Zap,
   Check,
+  Github,
   Figma,
   Download,
   BookOpen,

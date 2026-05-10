@@ -12,10 +12,14 @@ const BACKEND_URL   = 'http://localhost:3001';
 
 /** Try to reach the local backend. Returns true if reachable within 2 s. */
 async function isBackendReachable(): Promise<boolean> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), 2000);
   try {
-    await fetch(`${BACKEND_URL}/api/ip`, { signal: AbortSignal.timeout(2000) });
+    await fetch(`${BACKEND_URL}/api/ip`, { signal: controller.signal });
+    clearTimeout(id);
     return true;
   } catch {
+    clearTimeout(id);
     return false;
   }
 }
@@ -75,8 +79,10 @@ export const QRPreviewModal = () => {
 
     if (reachable) {
       // ── Backend is UP: use token-based preview ─────────────────────
+      const previewController = new AbortController();
+      const previewId = setTimeout(() => previewController.abort(), 5000);
       try {
-        const ipRes = await fetch(`${BACKEND_URL}/api/ip`, { signal: AbortSignal.timeout(3000) });
+        const ipRes = await fetch(`${BACKEND_URL}/api/ip`);
         const { ip } = await ipRes.json();
         setNetworkIp(ip);
 
@@ -85,14 +91,16 @@ export const QRPreviewModal = () => {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify(payload),
-          signal:  AbortSignal.timeout(5000),
+          signal:  previewController.signal,
         });
         const { token: newToken } = await previewRes.json();
+        clearTimeout(previewId);
 
         const url = `http://${ip}:${vitePort}/preview?token=${newToken}&api=${BACKEND_URL}`;
         setPreviewUrl(url);
         setBackendActive(true);
       } catch {
+        clearTimeout(previewId);
         // Backend answered health-check but errored on preview endpoint → fall back
         setErrorKind('no-backend');
       }

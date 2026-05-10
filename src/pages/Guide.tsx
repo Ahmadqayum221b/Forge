@@ -234,7 +234,7 @@ const Section = ({ section }: { section: typeof SECTIONS[0] }) => {
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
           style={{ background: `${section.color}18`, border: `1px solid ${section.color}35` }}
         >
-          <Icon className="h-4.5 w-4.5" style={{ color: section.color }} />
+          <Icon className="h-4 w-4" style={{ color: section.color }} />
         </div>
         <div className="flex-1">
           <h3 className="text-sm font-bold text-white">{section.title}</h3>
@@ -269,7 +269,7 @@ const Guide = () => {
           <div className="h-4 w-px bg-white/10" />
           <div className="flex items-center gap-2">
             <div className="relative flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-pink-500 shadow-lg shadow-violet-500/30">
-              <Sparkles className="h-3.5 w-3.5 text-white" />
+              <Sparkles className="h-4 w-4 text-white" />
             </div>
             <span className="text-sm font-semibold text-white">Forge Guide</span>
           </div>

@@ -53,12 +53,20 @@ export const Canvas = () => {
         if (activeTool === 'rect')                              typeToAdd = 'container';
         else if (activeTool === 'circle')                       typeToAdd = 'avatar';
         else if (activeTool === 'text' || activeTool === 'heading') typeToAdd = 'text';
-        else if (activeTool === 'line' || activeTool === 'arrow')  typeToAdd = 'container';
-        else if (activeTool === 'pen')                          typeToAdd = 'container';
-        else if (activeTool === 'comment')                      typeToAdd = 'text';
+        else if (activeTool === 'line')                         typeToAdd = 'divider';
+        else if (activeTool === 'arrow')                        typeToAdd = 'icon';
+        else if (activeTool === 'pen')                          typeToAdd = 'icon';
+        else if (activeTool === 'comment')                      typeToAdd = 'badge';
         // 'ai', 'scale' etc. fall through to 'container' default
 
-        addComponent(typeToAdd, Math.max(0, x - 50), Math.max(0, y - 20));
+        const id = addComponent(typeToAdd, Math.max(0, x - 50), Math.max(0, y - 20));
+        
+        // Set specific props for specialized tools
+        if (activeTool === 'arrow') updateComponent(id, { props: { name: 'arrow-right', size: 32 } });
+        else if (activeTool === 'pen') updateComponent(id, { props: { name: 'pen-tool', size: 32 } });
+        else if (activeTool === 'comment') updateComponent(id, { props: { text: 'New Comment' } });
+        else if (activeTool === 'circle') updateComponent(id, { styles: { borderRadius: 1000 } });
+        
         setActiveTool('select');
       } else {
         // Only deselect if clicking on the empty screen background, not a component
