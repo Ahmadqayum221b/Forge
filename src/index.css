@@ -1,0 +1,126 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 30% 6%;
+    --foreground: 240 20% 98%;
+
+    --card: 240 25% 9%;
+    --card-foreground: 240 20% 98%;
+
+    --popover: 240 25% 9%;
+    --popover-foreground: 240 20% 98%;
+
+    --primary: 252 100% 47%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 336 100% 52%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 240 15% 14%;
+    --muted-foreground: 240 10% 68%;
+
+    --accent: 195 100% 60%;
+    --accent-foreground: 240 30% 6%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 20% 18%;
+    --input: 240 20% 18%;
+    --ring: 252 100% 60%;
+
+    --radius: 1rem;
+
+    /* Brand */
+    --brand-violet: 252 100% 47%;
+    --brand-pink: 336 100% 52%;
+    --brand-cyan: 195 100% 60%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(var(--brand-violet)), hsl(var(--brand-pink)));
+    --gradient-aurora: linear-gradient(135deg, hsl(var(--brand-violet)) 0%, hsl(var(--brand-pink)) 50%, hsl(var(--brand-cyan)) 100%);
+    --gradient-glass: linear-gradient(135deg, hsla(0,0%,100%,0.08), hsla(0,0%,100%,0.02));
+
+    --shadow-glow: 0 30px 80px -20px hsl(var(--brand-violet) / 0.55);
+    --shadow-pink: 0 30px 80px -20px hsl(var(--brand-pink) / 0.45);
+    --shadow-soft: 0 10px 40px -10px hsl(240 50% 2% / 0.6);
+
+    --sidebar-background: 240 25% 9%;
+    --sidebar-foreground: 240 20% 95%;
+    --sidebar-primary: 252 100% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 20% 14%;
+    --sidebar-accent-foreground: 240 20% 95%;
+    --sidebar-border: 240 20% 18%;
+    --sidebar-ring: 252 100% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Manrope', system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    background-image:
+      radial-gradient(ellipse 80% 60% at 20% 0%, hsl(var(--brand-violet) / 0.25), transparent 60%),
+      radial-gradient(ellipse 70% 50% at 100% 30%, hsl(var(--brand-pink) / 0.18), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 50% 100%, hsl(var(--brand-cyan) / 0.12), transparent 60%);
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  .glass {
+    background: var(--gradient-glass);
+    backdrop-filter: blur(24px) saturate(140%);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid hsl(0 0% 100% / 0.08);
+  }
+  .glass-strong {
+    background: linear-gradient(135deg, hsla(0,0%,100%,0.12), hsla(0,0%,100%,0.04));
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    border: 1px solid hsl(0 0% 100% / 0.12);
+  }
+  .text-gradient {
+    background: var(--gradient-aurora);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .grid-bg {
+    background-image:
+      linear-gradient(hsl(0 0% 100% / 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(0 0% 100% / 0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+}
+
+/* Builder custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Builder select dropdowns */
+select option {
+  background: #18182a;
+  color: #fff;
+}
