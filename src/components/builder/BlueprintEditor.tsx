@@ -336,7 +336,6 @@ export const BlueprintEditor = ({onClose}:{onClose:()=>void})=>{
                         style={{background:'none',border:'none',color:'rgba(255,255,255,0.25)',cursor:'pointer',fontSize:18,lineHeight:1,padding:'2px 4px',flexShrink:0,transition:'all 0.2s'}}
                         onMouseEnter={e=>(e.currentTarget.style.color='#FF4444')} onMouseLeave={e=>(e.currentTarget.style.color='rgba(255,255,255,0.25)')}>×</button>
                     </div>
->
                     {def&&def.params.length>0&&(
                       <div style={{padding:'8px 10px',display:'flex',flexDirection:'column',gap:6}} onMouseDown={e=>e.stopPropagation()}>
                         {def.params.map(p=>(
