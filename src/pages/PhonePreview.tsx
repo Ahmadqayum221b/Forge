@@ -28,11 +28,14 @@ export const PhonePreview = () => {
     // ── Path A: base64-encoded project (Vercel / no backend) ─────────
     if (projectParam) {
       try {
-        const decoded = JSON.parse(atob(projectParam)) as PreviewProject;
+        // Unicode-safe base64 decoding
+        const decoded = JSON.parse(decodeURIComponent(escape(atob(projectParam)))) as PreviewProject;
+        if (!decoded || !decoded.screens) throw new Error('Invalid project structure');
         setProject(decoded);
         setCurrentScreenId(decoded.screens[0]?.id || '');
-      } catch {
-        setError('Could not decode the preview data. The QR code may be corrupted or expired.');
+      } catch (err) {
+        console.error('Preview decode error:', err);
+        setError('Could not decode the preview data. The project might be too large or contain invalid characters.');
       }
       return;
     }
